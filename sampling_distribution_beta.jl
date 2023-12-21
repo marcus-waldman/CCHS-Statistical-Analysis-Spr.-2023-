@@ -14,55 +14,116 @@ macro bind(def, element)
     end
 end
 
-# ╔═╡ 43eca2e0-9e09-11ee-174c-e96c4010a8d0
+# ╔═╡ 1ad50890-9fb5-11ee-11fa-0319c94201d0
 begin 
-	using PlutoUI, Statistics, Distributions, DataFrames, Gadfly
-	Reps = 100000;
-	set_default_plot_size(18cm, 8cm);
+	using PlutoUI, Distributions, DataFrames, Gadfly, HypothesisTests
+	Draws = 100000;
+	set_default_plot_size(18cm, 18cm);
 end;
 
-# ╔═╡ 29181b99-c3d9-43a3-879c-414f0a7346e0
-md"Set the value for $\alpha$:"
+# ╔═╡ e59a02f9-b814-47a4-aba3-8a46cb0a14dc
+@bind alpha Slider(0.1:.1:5.0,1.0,true)
 
-# ╔═╡ 9d7ed8b9-3314-4158-a101-d8489afb125d
-@bind alpha Slider(0.0:.1:10.0,1.0,true)
+# ╔═╡ ecd00c15-7b7b-4960-b348-843c683e3f2c
+@bind beta Slider(0.1:.1:5.0,1.0,true)
 
-# ╔═╡ e86e7709-605c-4b7e-9cc6-3df9c64210a2
-md"Set the value for $\beta$:"
+# ╔═╡ 56b16e58-0435-4f53-a3c7-148079a3d34e
+@bind N Slider([2,3,4,5,6,7,8,9,10,20,30,50,100,500], 2, true)
 
-# ╔═╡ 1d238ab0-9222-428d-9b9f-4969f2f84f86
-@bind beta Slider(0.0:.1:10.0,1.0,true)
-
-# ╔═╡ fa401e4c-f11e-4088-b767-5eb18b95980b
-md"Set the sample size, N:"
-
-# ╔═╡ 1294967c-aed1-4920-8b80-70407ec862e1
-@bind N Slider([1,2,3,4,5,6,7,8,9,10,20,30,50,100,500,1000,5000], 30, true)
-
-# ╔═╡ 107b2818-0e16-48e0-81b6-3bd855b42914
-begin 
-	if alpha==0
-		alpha != 1E-8;
-	end
-	if beta==0
-		beta != 1E-8
-	end
-	distribution = Distributions.Beta(alpha,beta);
-	x = range(.01,.99,1000);
-	f = Distributions.pdf.(distribution, x); 
-	df = DataFrames.DataFrame(x = x, f = f);
-	p1 = plot(df, x = x, y = f, ymin = 0.0 .* f, Geom.line);
-	ybar = [mean(Distributions.rand(distribution,N)) for i = 1:Reps];
+# ╔═╡ ef0950ba-1ca5-4794-8e1f-7a8400b9dbf6
+begin
+		
+	# Beta distribution
+	dbeta = Distributions.Beta(alpha,beta);
+	
+	df = DataFrames.DataFrame(y = Distributions.rand(dbeta, Draws))
+	p1 = plot(
+	    df, x = :y, 
+	    Geom.histogram(density = true), 
+	    Guide.yticks(ticks=nothing), 
+	    Guide.xticks(ticks = 0:.25:1), 
+	    Guide.title("Data Distribution"), 
+	    Guide.xlabel("Data"), 
+	    Coord.cartesian(xmin=0, xmax=1)
+	);
+	p1
+	
+	
+	ybar = [mean(Distributions.rand(dbeta,N)) for i = 1:Draws];
 	bardf = DataFrames.DataFrame(ybar = ybar);
-	p2a = layer(bardf, x = ybar,  Geom.histogram(density = true), alpha = [0.3]);
-	dnorm = Distributions.Normal(mean(bardf[!,:ybar]), std(bardf[!,:ybar]));
-	df[!,:dbar] = Distributions.pdf.(dnorm,x);
-	p2b = layer(df, x = x, y = :dbar, Geom.line, color = [colorant"red"]);
-	p2 = plot(p2a,p2b);
+	p2a = layer(
+	    bardf, 
+	    x = ybar,  Geom.histogram(density = true), 
+	    alpha = [0.3]
+	);
+	
+	
+	dnorm = Distributions.Normal(Distributions.mean(dbeta), Distributions.std(dbeta)/sqrt(N));
+	p2b = layer(df, 
+	    x = LinRange(0,1,500), y = Distributions.pdf.(dnorm,LinRange(0,1,500)), 
+	    Geom.line, 
+	    color = [colorant"red"]
+	    );
+	
+	p2 = plot(
+	    p2a,p2b, 
+	    Coord.cartesian(xmin = 0, xmax = 1), 
+	    Guide.xlabel("Sample Means"),
+	    Guide.ylabel(""),
+	    Guide.yticks(ticks=nothing), 
+	    Guide.xticks(ticks = 0:.25:1), 
+	    Guide.title("Sampling Distribution")
+	);
+	p2
+	
+	p3b = layer(df, 
+	    x = LinRange(minimum(ybar),maximum(ybar), 500), 
+	    y = Distributions.pdf.(dnorm,LinRange(minimum(ybar),maximum(ybar),500)), 
+	    Geom.line, 
+	    color = [colorant"red"]
+	);
+	p3 = plot(
+	    p2a,p3b, 
+	    Guide.xlabel("Sample Means"),
+	    Guide.ylabel(""),
+	    Guide.yticks(ticks=nothing), 
+	    Guide.title("(Zoomed) Sampling Distribution"), 
+	    Guide.manual_color_key("",["Empirical","Normal/CLT"], 
+	        [Gadfly.current_theme().default_color,"red"]), 
+		Coord.cartesian(xmin=minimum(ybar), xmax=maximum(ybar))
+	);
+	p3
+	
+	p = hstack(vstack(p1,p2), p3); 
+	
+	ks_y = HypothesisTests.ApproximateOneSampleKSTest(df[!,:y], dnorm).δ
+	ks_bar = HypothesisTests.ApproximateOneSampleKSTest(ybar, dnorm).δ
+	
+	txt0 = "Std. dev. of empirical sampling dist. : se = "*
+	    string(round(std(ybar),digits = 3))*
+	    ".";
+	
+	txt1=
+	"Discrepancy Statistic, KS = "*
+	    string(round(ks_bar,digits = 3))*
+	    ".";
+	txt2 = 
+	    "The sampling distribution is "*
+	    string(round(100*(ks_y-ks_bar)/ks_y,digits = 2))*
+	    "% 'more normal' than the data distribution!* ";
 end;
 
-# ╔═╡ b01cb01a-0c9f-469c-9544-a8d05e38aded
-hstack(p1,p2)
+# ╔═╡ 61cf5f91-bb5c-49e9-af94-7150bc522cd1
+p
+
+# ╔═╡ c1ad018a-4521-4935-97e4-96fc82b2a966
+txt0
+
+# ╔═╡ 04f1fd36-01e4-45dc-b693-78543f060c1e
+txt1
+
+# ╔═╡ c232bf9c-9c43-446b-9ae9-9f325d0e533c
+txt2
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -70,13 +131,14 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Gadfly = "c91e804a-d5a3-530f-b6f0-dfbca275c004"
+HypothesisTests = "09f84164-cd44-5f33-b23f-e6b0d136a0d5"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [compat]
 DataFrames = "~1.6.1"
 Distributions = "~0.25.104"
 Gadfly = "~1.4.0"
+HypothesisTests = "~0.11.0"
 PlutoUI = "~0.7.54"
 """
 
@@ -86,7 +148,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.9.4"
 manifest_format = "2.0"
-project_hash = "eddcf2a8beba5019ceee77464f20ba02c5555e0d"
+project_hash = "af66a29ff8a5556dbd90d400d3948aee1cb1a6b4"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -107,9 +169,9 @@ version = "1.2.2"
 
 [[deps.Adapt]]
 deps = ["LinearAlgebra", "Requires"]
-git-tree-sha1 = "cde29ddf7e5726c9fb511f340244ea3481267608"
+git-tree-sha1 = "f8c724a2066b2d37d0234fe4022ec67987022d00"
 uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-version = "3.7.2"
+version = "4.0.0"
 weakdeps = ["StaticArrays"]
 
     [deps.Adapt.extensions]
@@ -124,9 +186,9 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [[deps.AxisAlgorithms]]
 deps = ["LinearAlgebra", "Random", "SparseArrays", "WoodburyMatrices"]
-git-tree-sha1 = "66771c8d21c8ff5e3a93379480a2307ac36863f7"
+git-tree-sha1 = "01b8ccb13d68535d73d2b0c23e39bd23155fb712"
 uuid = "13072b0f-2c55-5437-9ae7-d433b7a33950"
-version = "1.0.1"
+version = "1.1.0"
 
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
@@ -177,6 +239,16 @@ git-tree-sha1 = "fc08e5930ee9a4e03f84bfb5211cb54e7769758a"
 uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
 version = "0.12.10"
 
+[[deps.Combinatorics]]
+git-tree-sha1 = "08c8b6831dc00bfea825826be0bc8336fc369860"
+uuid = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
+version = "1.0.2"
+
+[[deps.CommonSolve]]
+git-tree-sha1 = "0eee5eb66b1cf62cd6ad1b460238e60e4b09400c"
+uuid = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
+version = "0.2.4"
+
 [[deps.Compat]]
 deps = ["UUIDs"]
 git-tree-sha1 = "886826d76ea9e72b35fcd000e535588f7b60f21d"
@@ -197,6 +269,20 @@ deps = ["Base64", "Colors", "DataStructures", "Dates", "IterTools", "JSON", "Lin
 git-tree-sha1 = "bf6570a34c850f99407b494757f5d7ad233a7257"
 uuid = "a81c6b42-2e10-5240-aca2-a61377ecd94b"
 version = "0.9.5"
+
+[[deps.ConstructionBase]]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "c53fc348ca4d40d7b371e71fd52251839080cbc9"
+uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
+version = "1.5.4"
+
+    [deps.ConstructionBase.extensions]
+    ConstructionBaseIntervalSetsExt = "IntervalSets"
+    ConstructionBaseStaticArraysExt = "StaticArrays"
+
+    [deps.ConstructionBase.weakdeps]
+    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
+    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [[deps.Contour]]
 git-tree-sha1 = "d05d9e7b7aedff4e5b51a029dced05cfb6125781"
@@ -360,6 +446,12 @@ git-tree-sha1 = "7134810b1afce04bbc1045ca1985fbe81ce17653"
 uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
 version = "0.9.5"
 
+[[deps.HypothesisTests]]
+deps = ["Combinatorics", "Distributions", "LinearAlgebra", "Printf", "Random", "Rmath", "Roots", "Statistics", "StatsAPI", "StatsBase"]
+git-tree-sha1 = "4b5d5ba51f5f473737ed9de6d8a7aa190ad8c72f"
+uuid = "09f84164-cd44-5f33-b23f-e6b0d136a0d5"
+version = "0.11.0"
+
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
 git-tree-sha1 = "d75853a0bdbfb1ac815478bacd89cd27b550ace6"
@@ -389,9 +481,9 @@ uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 
 [[deps.Interpolations]]
 deps = ["Adapt", "AxisAlgorithms", "ChainRulesCore", "LinearAlgebra", "OffsetArrays", "Random", "Ratios", "Requires", "SharedArrays", "SparseArrays", "StaticArrays", "WoodburyMatrices"]
-git-tree-sha1 = "274ad8005db8b4ef6cc46d1392927083405813c2"
+git-tree-sha1 = "88a101217d7cb38a7b481ccd50d21876e1d1b0e0"
 uuid = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
-version = "0.15.0"
+version = "0.15.1"
 
     [deps.Interpolations.extensions]
     InterpolationsUnitfulExt = "Unitful"
@@ -516,9 +608,9 @@ version = "2024.0.0+0"
 
 [[deps.MacroTools]]
 deps = ["Markdown", "Random"]
-git-tree-sha1 = "9ee1618cbf5240e6d4e0371d6f24065083f60c48"
+git-tree-sha1 = "b211c553c199c111d998ecdaf7623d1b89b69f93"
 uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
-version = "0.5.11"
+version = "0.5.12"
 
 [[deps.Markdown]]
 deps = ["Base64"]
@@ -564,10 +656,13 @@ uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
 version = "1.2.0"
 
 [[deps.OffsetArrays]]
-deps = ["Adapt"]
-git-tree-sha1 = "2ac17d29c523ce1cd38e27785a7d23024853a4bb"
+git-tree-sha1 = "6a731f2b5c03157418a20c12195eb4b74c8f8621"
 uuid = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
-version = "1.12.10"
+version = "1.13.0"
+weakdeps = ["Adapt"]
+
+    [deps.OffsetArrays.extensions]
+    OffsetArraysAdaptExt = "Adapt"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
@@ -598,9 +693,9 @@ version = "0.11.31"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
-git-tree-sha1 = "a935806434c9d4c506ba941871b327b96d41f2bf"
+git-tree-sha1 = "8489905bcdbcfac64d1daa51ca07c0d8f0283821"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.8.0"
+version = "2.8.1"
 
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
@@ -692,6 +787,24 @@ git-tree-sha1 = "6ed52fdd3382cf21947b15e8870ac0ddbff736da"
 uuid = "f50d1b31-88e8-58de-be2c-1cc44531875f"
 version = "0.4.0+0"
 
+[[deps.Roots]]
+deps = ["ChainRulesCore", "CommonSolve", "Printf", "Setfield"]
+git-tree-sha1 = "0f1d92463a020321983d04c110f476c274bafe2e"
+uuid = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
+version = "2.0.22"
+
+    [deps.Roots.extensions]
+    RootsForwardDiffExt = "ForwardDiff"
+    RootsIntervalRootFindingExt = "IntervalRootFinding"
+    RootsSymPyExt = "SymPy"
+    RootsSymPyPythonCallExt = "SymPyPythonCall"
+
+    [deps.Roots.weakdeps]
+    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+    IntervalRootFinding = "d2bf35a9-74e0-55ec-b149-d360ff49b807"
+    SymPy = "24249f21-da20-56a4-8eb1-6a02cf4ae2e6"
+    SymPyPythonCall = "bc8888f7-b21e-4b7c-a06a-5d9c9496438c"
+
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.7.0"
@@ -704,6 +817,12 @@ version = "1.4.1"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
+
+[[deps.Setfield]]
+deps = ["ConstructionBase", "Future", "MacroTools", "StaticArraysCore"]
+git-tree-sha1 = "e2cc6d8c88613c05e1defb55170bf5ff211fbeac"
+uuid = "efcf1570-3423-57d1-acb7-fd33fddbac46"
+version = "1.1.1"
 
 [[deps.SharedArrays]]
 deps = ["Distributed", "Mmap", "Random", "Serialization"]
@@ -845,9 +964,9 @@ uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 
 [[deps.WoodburyMatrices]]
 deps = ["LinearAlgebra", "SparseArrays"]
-git-tree-sha1 = "5f24e158cf4cee437052371455fe361f526da062"
+git-tree-sha1 = "c1a7aa6219628fcd757dede0ca95e245c5cd9511"
 uuid = "efce3f68-66dc-5838-9240-27a6d6f5f9b6"
-version = "0.5.6"
+version = "1.0.0"
 
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
@@ -871,14 +990,14 @@ version = "17.4.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╠═43eca2e0-9e09-11ee-174c-e96c4010a8d0
-# ╟─29181b99-c3d9-43a3-879c-414f0a7346e0
-# ╟─9d7ed8b9-3314-4158-a101-d8489afb125d
-# ╟─e86e7709-605c-4b7e-9cc6-3df9c64210a2
-# ╟─1d238ab0-9222-428d-9b9f-4969f2f84f86
-# ╟─fa401e4c-f11e-4088-b767-5eb18b95980b
-# ╟─1294967c-aed1-4920-8b80-70407ec862e1
-# ╟─107b2818-0e16-48e0-81b6-3bd855b42914
-# ╠═b01cb01a-0c9f-469c-9544-a8d05e38aded
+# ╟─1ad50890-9fb5-11ee-11fa-0319c94201d0
+# ╟─e59a02f9-b814-47a4-aba3-8a46cb0a14dc
+# ╟─ecd00c15-7b7b-4960-b348-843c683e3f2c
+# ╟─56b16e58-0435-4f53-a3c7-148079a3d34e
+# ╟─ef0950ba-1ca5-4794-8e1f-7a8400b9dbf6
+# ╟─61cf5f91-bb5c-49e9-af94-7150bc522cd1
+# ╟─c1ad018a-4521-4935-97e4-96fc82b2a966
+# ╟─04f1fd36-01e4-45dc-b693-78543f060c1e
+# ╟─c232bf9c-9c43-446b-9ae9-9f325d0e533c
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
