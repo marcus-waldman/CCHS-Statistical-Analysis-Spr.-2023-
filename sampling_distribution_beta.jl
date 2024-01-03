@@ -17,22 +17,37 @@ end
 # ╔═╡ 1ad50890-9fb5-11ee-11fa-0319c94201d0
 begin 
 	using PlutoUI, Distributions, DataFrames, Gadfly, HypothesisTests
-	Draws = 100000;
 	set_default_plot_size(18cm, 18cm);
 end;
 
-# ╔═╡ e59a02f9-b814-47a4-aba3-8a46cb0a14dc
-@bind alpha Slider(0.1:.1:5.0,1.0,true)
-
-# ╔═╡ ecd00c15-7b7b-4960-b348-843c683e3f2c
-@bind beta Slider(0.1:.1:5.0,1.0,true)
+# ╔═╡ 170dc8d9-6789-41c2-a6d1-c9ca4079d832
+md"""Sample size, *N*:"""
 
 # ╔═╡ 56b16e58-0435-4f53-a3c7-148079a3d34e
 @bind N Slider([2,3,4,5,6,7,8,9,10,20,30,50,100,500], 2, true)
 
+# ╔═╡ fd8dfdaf-cc85-4fec-b3f6-0c52343284ff
+md"""Left skew parameter, $\alpha$"""
+
+# ╔═╡ e59a02f9-b814-47a4-aba3-8a46cb0a14dc
+@bind alpha Slider(0.1:.1:5.0,1.0,true)
+
+# ╔═╡ 679ca881-14ca-445d-b9a2-10b00bac7913
+md"""Right skew parameter, $\beta$"""
+
+# ╔═╡ ecd00c15-7b7b-4960-b348-843c683e3f2c
+@bind beta Slider(0.1:.1:5.0,1.0,true)
+
+# ╔═╡ 2ef3de8d-6d69-43bb-afb7-0febf48033f2
+md"""Number of simulations, *Draws*:"""
+
+# ╔═╡ cfd18228-3b57-4026-8642-07249d77bfb6
+@bind draws NumberField(1E3:1E5, default=5E3)
+
 # ╔═╡ ef0950ba-1ca5-4794-8e1f-7a8400b9dbf6
 begin
-		
+	Draws = Int(round(draws))
+	
 	# Beta distribution
 	dbeta = Distributions.Beta(alpha,beta);
 	
@@ -107,13 +122,9 @@ begin
 	"Discrepancy Statistic, KS = "*
 	    string(round(ks_bar,digits = 3))*
 	    ".";
-	txt2 = 
-	    "The sampling distribution is "*
-	    string(round(100*(ks_y-ks_bar)/ks_y,digits = 2))*
-	    "% 'more normal' than the data distribution!* ";
 end;
 
-# ╔═╡ 61cf5f91-bb5c-49e9-af94-7150bc522cd1
+# ╔═╡ 896b5a5e-9d34-46e3-89de-16baaba33e44
 p
 
 # ╔═╡ c1ad018a-4521-4935-97e4-96fc82b2a966
@@ -121,9 +132,6 @@ txt0
 
 # ╔═╡ 04f1fd36-01e4-45dc-b693-78543f060c1e
 txt1
-
-# ╔═╡ c232bf9c-9c43-446b-9ae9-9f325d0e533c
-txt2
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -991,13 +999,17 @@ version = "17.4.0+0"
 
 # ╔═╡ Cell order:
 # ╟─1ad50890-9fb5-11ee-11fa-0319c94201d0
-# ╟─e59a02f9-b814-47a4-aba3-8a46cb0a14dc
-# ╟─ecd00c15-7b7b-4960-b348-843c683e3f2c
+# ╟─170dc8d9-6789-41c2-a6d1-c9ca4079d832
 # ╟─56b16e58-0435-4f53-a3c7-148079a3d34e
+# ╟─fd8dfdaf-cc85-4fec-b3f6-0c52343284ff
+# ╟─e59a02f9-b814-47a4-aba3-8a46cb0a14dc
+# ╟─679ca881-14ca-445d-b9a2-10b00bac7913
+# ╟─ecd00c15-7b7b-4960-b348-843c683e3f2c
+# ╟─2ef3de8d-6d69-43bb-afb7-0febf48033f2
+# ╟─cfd18228-3b57-4026-8642-07249d77bfb6
 # ╟─ef0950ba-1ca5-4794-8e1f-7a8400b9dbf6
-# ╟─61cf5f91-bb5c-49e9-af94-7150bc522cd1
+# ╟─896b5a5e-9d34-46e3-89de-16baaba33e44
 # ╟─c1ad018a-4521-4935-97e4-96fc82b2a966
 # ╟─04f1fd36-01e4-45dc-b693-78543f060c1e
-# ╟─c232bf9c-9c43-446b-9ae9-9f325d0e533c
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

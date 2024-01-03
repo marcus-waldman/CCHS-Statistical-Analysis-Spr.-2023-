@@ -1,0 +1,10 @@
+[deps]
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
+FreqTables = "da1fdf0e-e0ff-5433-a45f-9bb5ff651cb1"
+Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
+Tidier = "f0413319-3358-4bb0-8e7c-0c83523a93bd"
+TidierPlots = "337ecbd1-5042-4e2a-ae6f-ca776f97570a"
+TidierStrings = "248e6834-d0f8-40ef-8fbb-8e711d883e9c"
+Turing = "fce5fe82-541a-59a6-adf8-730c64b5f9a0"
